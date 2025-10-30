@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Basketboard</title>
+  <style>
+    :root{
+      --ui-bg: rgba(20,22,28,.55);
+      --ui-border: rgba(255,255,255,.08);
+      --ui-hover: rgba(255,255,255,.08);
+      --ui-active: #4b82f0;
+      --text: #e9eef7;
+      --sub: #b9c2d3;
+      --shadow: 0 8px 30px rgba(0,0,0,.35);
+      --radius: 14px;
+      --chip-radius: 12px;
+    }
+
+    html,body{margin:0;height:100%;background:#202025}
+    canvas{display:block; width:100vw; height:100vh;}
+
+    /* Floating UI container (no blocking panel) */
+    .ui{
+      position:fixed; top:16px; left:16px;
+      display:flex; flex-direction:column; gap:12px;
+      z-index:10; pointer-events:none;  /* let clicks pass through by default */
+      font-family:system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+    }
+    /* Each “card” is small, glassy, hoverable */
+    .card{
+      display:flex; align-items:center; gap:10px; flex-wrap:wrap;
+      padding:10px 12px;
+      background: var(--ui-bg);
+      border: 1px solid var(--ui-border);
+      border-radius: var(--radius);
+      backdrop-filter: blur(8px);
+      box-shadow: var(--shadow);
+      pointer-events:auto;           /* clickable */
+    }
+    .stack{ display:flex; flex-direction:column; gap:8px; }
+
+    .label{
+      font-size:12px; color:var(--sub);
+      margin-bottom:2px; padding-left:2px;
+      user-select:none;
+    }
+
+    /* Chips / buttons */
+    .btn{
+      padding:8px 12px;
+      border:1px solid var(--ui-border);
+      background:transparent;
+      color:var(--text);
+      border-radius: var(--chip-radius);
+      cursor:pointer; outline:none;
+      transition: transform .06s ease, background .15s ease, border-color .15s ease;
+    }
+    .btn:hover{ background:var(--ui-hover); transform:translateY(-1px); }
+    .btn:active{ transform:translateY(0); }
+
+    .btn.small{ padding:6px 10px; font-size:13px }
+    .btn.active{
+      background: var(--ui-active);
+      border-color: var(--ui-active);
+      color:white;
+      box-shadow: 0 8px 18px rgba(75,130,240,.35);
+    }
+
+    .row{ display:flex; gap:8px; flex-wrap:wrap; }
+
+    /* Tiny tip card */
+    .tip{
+      color: var(--sub); font-size:12px; line-height:1.3;
+      padding:8px 10px;
+      border:1px solid var(--ui-border);
+      background: var(--ui-bg);
+      border-radius: var(--radius);
+      backdrop-filter: blur(8px);
+      box-shadow: var(--shadow);
+      pointer-events:none;
+      max-width: 240px;
+    }
+  </style>
+</head>
+<body>
+  <div class="ui">
+    <!-- Tools -->
+    <div class="stack">
+      <div class="label">Tools</div>
+      <div class="card">
+        <button id="tool-place" class="btn active">Place Player</button>
+        <button id="tool-draw" class="btn">Freehand</button>
+        <div class="row" style="margin-left:6px">
+          <button id="undo" class="btn small">Undo</button>
+          <button id="clear" class="btn small">Clear</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Players -->
+    <div class="stack">
+      <div class="label">Active Player</div>
+      <div class="card">
+        <button class="btn small player" data-num="1">1</button>
+        <button class="btn small player" data-num="2">2</button>
+        <button class="btn small player" data-num="3">3</button>
+        <button class="btn small player" data-num="4">4</button>
+        <button class="btn small player" data-num="5">5</button>
+      </div>
+    </div>
+
+    <!-- Tip -->
+    <div class="tip">
+      Hold mouse (or touch) to draw. Release or move off the court to stop.
+    </div>
+  </div>
+
+  <canvas id="c"></canvas>
+  <script type="module" src="main.js"></script>
+</body>
+</html>
