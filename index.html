@@ -1,103 +1,83 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <title>Basketboard</title>
-  <style>
-    :root{
-      --ui-bg: rgba(20,22,28,.55);
-      --ui-border: rgba(255,255,255,.08);
-      --ui-hover: rgba(255,255,255,.08);
-      --ui-active: #4b82f0;
-      --text: #e9eef7;
-      --sub: #b9c2d3;
-      --shadow: 0 8px 30px rgba(0,0,0,.35);
-      --radius: 14px;
-      --chip-radius: 12px;
-    }
+<meta charset="utf-8">
+<title>Basketboard</title>
+<style>
+  html,body{margin:0;padding:0;height:100%;background:#1e1e22;font-family:sans-serif}
+  canvas{display:block;width:100vw;height:100vh;cursor:default}
 
-    html,body{margin:0;height:100%;background:#202025}
-    canvas{display:block; width:100vw; height:100vh;}
-
-    /* Floating UI container (no blocking panel) */
-    .ui{
-      position:fixed; top:16px; left:16px;
-      display:flex; flex-direction:column; gap:12px;
-      z-index:10; pointer-events:none;  /* let clicks pass through by default */
-      font-family:system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
-    }
-    /* Each “card” is small, glassy, hoverable */
-    .card{
-      display:flex; align-items:center; gap:10px; flex-wrap:wrap;
-      padding:10px 12px;
-      background: var(--ui-bg);
-      border: 1px solid var(--ui-border);
-      border-radius: var(--radius);
-      backdrop-filter: blur(8px);
-      box-shadow: var(--shadow);
-      pointer-events:auto;           /* clickable */
-    }
-    .stack{ display:flex; flex-direction:column; gap:8px; }
-
-    .label{
-      font-size:12px; color:var(--sub);
-      margin-bottom:2px; padding-left:2px;
-      user-select:none;
-    }
-
-    /* Chips / buttons */
-    .btn{
-      padding:8px 12px;
-      border:1px solid var(--ui-border);
-      background:transparent;
-      color:var(--text);
-      border-radius: var(--chip-radius);
-      cursor:pointer; outline:none;
-      transition: transform .06s ease, background .15s ease, border-color .15s ease;
-    }
-    .btn:hover{ background:var(--ui-hover); transform:translateY(-1px); }
-    .btn:active{ transform:translateY(0); }
-
-    .btn.small{ padding:6px 10px; font-size:13px }
-    .btn.active{
-      background: var(--ui-active);
-      border-color: var(--ui-active);
-      color:white;
-      box-shadow: 0 8px 18px rgba(75,130,240,.35);
-    }
-
-    .row{ display:flex; gap:8px; flex-wrap:wrap; }
-
-    /* Tiny tip card */
-    .tip{
-      color: var(--sub); font-size:12px; line-height:1.3;
-      padding:8px 10px;
-      border:1px solid var(--ui-border);
-      background: var(--ui-bg);
-      border-radius: var(--radius);
-      backdrop-filter: blur(8px);
-      box-shadow: var(--shadow);
-      pointer-events:none;
-      max-width: 240px;
-    }
-  </style>
+  .ui{
+    position:fixed;top:14px;left:14px;z-index:10;
+    display:flex;flex-direction:column;gap:11px;
+    pointer-events:none;
+    width:250px;
+  }
+  .card{
+    display:flex;align-items:center;gap:9px;flex-wrap:wrap;
+    background:rgba(35,35,45,.6);
+    border:1px solid rgba(255,255,255,.1);
+    border-radius:9px 11px 9px 10px;
+    padding:10px 13px;
+    backdrop-filter:blur(10px);
+    box-shadow:0 3px 8px rgba(0,0,0,.35);
+    pointer-events:auto;
+  }
+  .btn{
+    border:1px solid rgba(255,255,255,.15);
+    background:rgba(255,255,255,.03);
+    color:#f0f0f0;
+    border-radius:9px;
+    padding:7px 12px;
+    cursor:pointer;
+    box-shadow:0 2px 6px rgba(0,0,0,.25);
+    transition:all .12s ease;
+  }
+  .btn:hover{
+    background:rgba(255,255,255,.08);
+    box-shadow:0 0 10px rgba(75,130,240,.25);
+    transform:translateY(-1px);
+  }
+  .btn:active{transform:scale(.97);}
+  .btn.small{font-size:13px;padding:5px 8px;}
+  .btn.active{
+    background:#ff9900;
+    border-color:#42f800;
+    color:#fff;
+    box-shadow:0 0 12px rgba(75,130,240,.3);
+  }
+  .stack{display:flex;flex-direction:column;gap:7px;}
+  .label{font-size:12px;color:#c0c0c8;letter-spacing:.3px;font-weight:500;}
+  .row{display:flex;gap:6px;flex-wrap:wrap;}
+  .tip{
+    color:#b0b0ba;font-size:12px;line-height:1.4;
+    padding:8px 11px;
+    border:1px solid rgba(255,255,255,.1);
+    background:rgba(25,25,30,.55);
+    border-radius:9px 11px 9px 10px;
+    max-width:240px;
+    box-shadow:0 2px 8px rgba(0,0,0,.25);
+  }
+  body.move-mode canvas{cursor:grab;}
+  body.move-mode canvas:active{cursor:grabbing;}
+</style>
 </head>
 <body>
   <div class="ui">
-    <!-- Tools -->
+
     <div class="stack">
       <div class="label">Tools</div>
       <div class="card">
-        <button id="tool-place" class="btn active">Place Player</button>
-        <button id="tool-draw" class="btn">Freehand</button>
-        <div class="row" style="margin-left:6px">
+        <button id="tool-place" class="btn active">Place</button>
+        <button id="tool-draw" class="btn">Draw</button>
+        <button id="tool-move" class="btn">Move</button>
+        <div class="row" style="margin-left:4px">
           <button id="undo" class="btn small">Undo</button>
           <button id="clear" class="btn small">Clear</button>
         </div>
       </div>
     </div>
 
-    <!-- Players -->
     <div class="stack">
       <div class="label">Active Player</div>
       <div class="card">
@@ -109,13 +89,23 @@
       </div>
     </div>
 
-    <!-- Tip -->
     <div class="tip">
-      Hold mouse (or touch) to draw. Release or move off the court to stop.
+      <b>Hold</b> mouse to draw on the court.<br>
+      Use <b>Move</b> mode to rotate and pan around.
     </div>
+
   </div>
 
   <canvas id="c"></canvas>
   <script type="module" src="main.js"></script>
+  <script>
+    // jus toggles grab handy cursor
+    const btnMove=document.getElementById('tool-move')
+    const btnDraw=document.getElementById('tool-draw')
+    const btnPlace=document.getElementById('tool-place')
+    btnMove.addEventListener('click',()=>document.body.classList.add('move-mode'))
+    btnDraw.addEventListener('click',()=>document.body.classList.remove('move-mode'))
+    btnPlace.addEventListener('click',()=>document.body.classList.remove('move-mode'))
+  </script>
 </body>
 </html>

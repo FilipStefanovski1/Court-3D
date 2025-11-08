@@ -1,373 +1,373 @@
-import * as THREE from 'three';
-import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
-import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
+import * as THREE from 'three'
+import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js'
+import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
 
-/* ----------------- Constants ----------------- */
-const EPS_SPRITE = 0.01;     // tiny lift so chips never z-fight
-const EPS_LINE   = 0.01;     // tiny lift for strokes
-const MIN_DIST   = 0.15;     // sampling distance for freehand
-const CHIP_PX    = 36;       // desired on-screen height (pixels) for the number sprite
+let MARKER_PX = 36
+let MIN_SEG = 0.15
+let LIFT = 0.01
 
-/* ----------------- Renderer ----------------- */
-const canvas = document.querySelector('#c');
-const renderer = new THREE.WebGLRenderer({ antialias: true, canvas });
-renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-renderer.setSize(window.innerWidth, window.innerHeight);
-renderer.outputColorSpace = THREE.SRGBColorSpace;
+const canvas = document.querySelector('#c')
+const renderer = new THREE.WebGLRenderer({canvas, antialias:false})
+renderer.setPixelRatio(Math.min(window.devicePixelRatio,1.5))
+renderer.setSize(window.innerWidth, window.innerHeight)
+renderer.outputColorSpace = THREE.SRGBColorSpace
 
-/* ----------------- Scene + Camera ----------------- */
-const scene = new THREE.Scene();
-scene.background = new THREE.Color(0x202025);
+const scene = new THREE.Scene()
+scene.background = new THREE.Color(0x202025)
 
-const camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.01, 2000);
-camera.position.set(0, 18, 22);
+const cam = new THREE.PerspectiveCamera(50, window.innerWidth/window.innerHeight, .01, 2000)
+cam.position.set(0,18,22)
 
-const controls = new OrbitControls(camera, renderer.domElement);
-controls.enableDamping = true;
+const controls = new OrbitControls(cam, renderer.domElement)
+controls.enableDamping = true
+controls.enabled = false
+let camDirty = true
+controls.addEventListener('change',()=>camDirty=true)
 
-/* ----------------- Lights ----------------- */
-scene.add(new THREE.AmbientLight(0xffffff, 0.6));
-const dir = new THREE.DirectionalLight(0xffffff, 2);
-dir.position.set(10, 20, 10);
-scene.add(dir);
+scene.add(new THREE.AmbientLight(0xffffff,.6))
+const sun = new THREE.DirectionalLight(0xffffff,1.5)
+sun.position.set(10,20,10)
+scene.add(sun)
 
-/* ----------------- Picking plane at true court height ----------------- */
-const courtPlane = new THREE.Mesh(
-  new THREE.PlaneGeometry(1000, 1000),                // big plane, we clamp to bounds later
-  new THREE.MeshBasicMaterial({ visible: false })
-);
-courtPlane.rotateX(-Math.PI / 2);
-scene.add(courtPlane);
+const floorPlane = new THREE.Mesh(
+  new THREE.PlaneGeometry(1000,1000),
+  new THREE.MeshBasicMaterial({visible:false})
+)
+floorPlane.rotateX(-Math.PI/2)
+scene.add(floorPlane)
 
-// Clamp to standard full-court rectangle after we scale X to 28m.
-let COURT_BOUNDS = { minX: -14, maxX: 14, minZ: -7.5, maxZ: 7.5 };
+let COURT = {minX:-14,maxX:14,minZ:-7.5,maxZ:7.5}
 
-const raycaster = new THREE.Raycaster();
-const ndc = new THREE.Vector2();
+const ray = new THREE.Raycaster()
+const vec2 = new THREE.Vector2()
 
-function clampToCourt(p) {
-  p.x = Math.min(Math.max(p.x, COURT_BOUNDS.minX), COURT_BOUNDS.maxX);
-  p.z = Math.min(Math.max(p.z, COURT_BOUNDS.minZ), COURT_BOUNDS.maxZ);
-  return p;
+function getPoint(e){
+  const r = renderer.domElement.getBoundingClientRect()
+  vec2.x = ((e.clientX - r.left)/r.width)*2-1
+  vec2.y = -((e.clientY - r.top)/r.height)*2+1
+  ray.setFromCamera(vec2,cam)
+  const hit = ray.intersectObject(floorPlane,false)[0]
+  if(!hit) return null
+  const p = hit.point.clone()
+  p.x = Math.min(COURT.maxX, Math.max(COURT.minX,p.x))
+  p.z = Math.min(COURT.maxZ, Math.max(COURT.minZ,p.z))
+  return p
 }
 
-function getPointFromEvent(ev) {
-  const rect = renderer.domElement.getBoundingClientRect();
-  ndc.x = ((ev.clientX - rect.left) / rect.width) * 2 - 1;
-  ndc.y = -((ev.clientY - rect.top) / rect.height) * 2 + 1;
-  raycaster.setFromCamera(ndc, camera);
-  const hit = raycaster.intersectObject(courtPlane, false)[0];
-  if (!hit) return null;
-  return clampToCourt(hit.point.clone());
+const lineMat = new THREE.LineBasicMaterial({
+  color:0xfff07a,
+  transparent:true,
+  opacity:.9,
+  blending:THREE.AdditiveBlending,
+  depthTest:false
+})
+lineMat.depthWrite=false
+lineMat.renderOrder=999
+
+const colors = ['#e74c3c','#f39c12','#27ae60','#2980b9','#8e44ad']
+
+function makeMarker(num,pos,c){
+  const col = c || colors[num-1] || '#4b82f0'
+  const base = new THREE.Mesh(
+    new THREE.CircleGeometry(.45,48),
+    new THREE.MeshBasicMaterial({color:col,transparent:true,opacity:.85})
+  )
+  base.rotation.x=-Math.PI/2
+  base.position.y=LIFT
+  const s=128
+  const cv=document.createElement('canvas')
+  cv.width=cv.height=s
+  const ctx=cv.getContext('2d')
+  ctx.fillStyle=col
+  ctx.beginPath();ctx.arc(s/2,s/2,s*0.45,0,Math.PI*2);ctx.fill()
+  ctx.fillStyle='#fff'
+  ctx.font='bold 72px system-ui,Arial'
+  ctx.textAlign='center'
+  ctx.textBaseline='middle'
+  ctx.fillText(String(num),s/2,s/2)
+  const tex=new THREE.CanvasTexture(cv)
+  const label=new THREE.Sprite(new THREE.SpriteMaterial({map:tex,transparent:true,depthTest:false}))
+  label.center.set(.5,0)
+  label.position.y=LIFT+.02
+  const g=new THREE.Group()
+  g.add(base)
+  g.add(label)
+  g.userData.label=label
+  if(pos) g.position.copy(pos)
+  return g
 }
 
-/* ----------------- Materials / Geoms ----------------- */
-const lineMatFinal = new THREE.LineBasicMaterial({ color: 0xfff07a });
-lineMatFinal.depthTest = false;   // keep strokes visible
-lineMatFinal.depthWrite = false;
+let mode='place'
+let activeNum=1
+const markerMap=new Map()
+const allLabels=[]
+const logStack=[]
+const scribbles=[]
 
-const playerColors = ['#e74c3c','#f39c12','#27ae60','#2980b9','#8e44ad'];
+const $=id=>document.getElementById(id)
+const btnPlace=$('tool-place')
+const btnDraw=$('tool-draw')
+const btnMove=$('tool-move')
+const btnUndo=$('undo')
+const btnClear=$('clear')
+const numBtns=[...document.querySelectorAll('.player')]
 
-/* Disk (floor) + sprite (number) combo */
-function makePlayerChip(number) {
-  const color = playerColors[number - 1] || '#4b82f0';
-
-  // Floor disk marker
-  const diskGeo = new THREE.CircleGeometry(0.45, 48); // ~0.9m diameter
-  const diskMat = new THREE.MeshBasicMaterial({
-    color,
-    transparent: true,
-    opacity: 0.85,
-    depthTest: true,
-    polygonOffset: true,
-    polygonOffsetUnits: -2   // nudge toward camera to avoid z-fighting on paint
-  });
-  const disk = new THREE.Mesh(diskGeo, diskMat);
-  disk.rotation.x = -Math.PI / 2;
-  disk.position.y = EPS_SPRITE;
-  disk.renderOrder = 2;
-
-  // Number sprite (constant screen size, always readable)
-  const size = 128;
-  const cvs = document.createElement('canvas');
-  cvs.width = cvs.height = size;
-  const ctx = cvs.getContext('2d');
-
-  ctx.fillStyle = color;
-  ctx.beginPath(); ctx.arc(size/2, size/2, size*0.45, 0, Math.PI*2); ctx.fill();
-  ctx.fillStyle = '#ffffff';
-  ctx.font = 'bold 72px system-ui, Arial';
-  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-  ctx.fillText(String(number), size/2, size/2);
-
-  const tex = new THREE.CanvasTexture(cvs);
-  const spriteMat = new THREE.SpriteMaterial({
-    map: tex,
-    depthTest: false,    // render on top of fences etc. for clarity
-    depthWrite: false,
-    transparent: true
-  });
-  const sprite = new THREE.Sprite(spriteMat);
-  sprite.center.set(0.5, 0.0);          // bottom-center
-  sprite.position.y = EPS_SPRITE + 0.02;
-  sprite.renderOrder = 10;
-
-  // Group both so we can move them together
-  const group = new THREE.Group();
-  group.add(disk);
-  group.add(sprite);
-  group.userData.sprite = sprite;
-  return group;
+function setMode(m){
+  mode=m
+  btnPlace.classList.toggle('active',m==='place')
+  btnDraw.classList.toggle('active',m==='draw')
+  btnMove.classList.toggle('active',m==='move')
+  controls.enabled = (m==='move')
 }
+btnPlace.onclick=()=>setMode('place')
+btnDraw.onclick=()=>setMode('draw')
+btnMove.onclick=()=>setMode('move')
+numBtns.forEach(b=>{
+  b.onclick=()=>{
+    numBtns.forEach(x=>x.classList.remove('active'))
+    b.classList.add('active')
+    activeNum=parseInt(b.dataset.num||'1')
+  }
+})
+numBtns[0].classList.add('active')
+btnUndo.onclick=()=>undoLast()
+btnClear.onclick=()=>wipeAll()
 
-/* ----------------- State & UI wiring ----------------- */
-let tool = 'place';        // 'place' | 'draw'
-let activePlayer = 1;
-
-const playersByNumber = new Map(); // number -> Group (disk + sprite)
-const allSprites = [];             // for constant pixel sizing
-
-const actions = []; // stack of {type:'player-add'|'player-move'|'stroke', ...}
-const strokes = [];
-
-const byId = (id) => document.getElementById(id);
-const toolPlaceBtn = byId('tool-place');
-const toolDrawBtn  = byId('tool-draw');
-const undoBtn = byId('undo');
-const clearBtn = byId('clear');
-const playerBtns = [...document.querySelectorAll('.player')];
-
-function setTool(t) {
-  tool = t;
-  toolPlaceBtn.classList.toggle('active', t === 'place');
-  toolDrawBtn.classList.toggle('active', t === 'draw');
-}
-toolPlaceBtn.onclick = () => setTool('place');
-toolDrawBtn.onclick  = () => setTool('draw');
-
-playerBtns.forEach(b=>{
-  b.onclick = () => {
-    playerBtns.forEach(x=>x.classList.remove('active'));
-    b.classList.add('active');
-    activePlayer = parseInt(b.dataset.num, 10);
-  };
-});
-playerBtns[0].classList.add('active');
-
-undoBtn.onclick = () => undo();
-clearBtn.onclick = () => clearAll();
-
-/* ----------------- Load court, compute true floor Y + frame camera ----------------- */
-const loader = new GLTFLoader();
-loader.load('./basketball_court.glb', (gltf) => {
-  const court = gltf.scene;
-  scene.add(court);
-
-  // Center & scale to ~28m length (X)
-  const box = new THREE.Box3().setFromObject(court);
-  const size = box.getSize(new THREE.Vector3());
-  const center = box.getCenter(new THREE.Vector3());
-  court.position.sub(center);
-
-  const targetLen = 28;                         // standard full-court length (m)
-  const s = targetLen / Math.max(size.x, 0.0001);
-  court.scale.setScalar(s);
-
-  // Robust floor Y: median of rays over a small central grid
-  const rc = new THREE.Raycaster();
-  const ys = [];
-  const gridHalf = 3;      // samples across -3..3
-  const step = 1.5;        // meters
-  for (let gx = -gridHalf; gx <= gridHalf; gx++) {
-    for (let gz = -gridHalf; gz <= gridHalf; gz++) {
-      const x = gx * step;
-      const z = gz * step;
-      rc.set(new THREE.Vector3(x, 1000, z), new THREE.Vector3(0, -1, 0));
-      const hits = rc.intersectObject(court, true);
-      const hit = hits.find(h => h.face && h.face.normal.y > 0.5) || hits[0];
-      if (hit) ys.push(hit.point.y);
+// load court
+new GLTFLoader().load('./basketball_court.glb',(g)=>{
+  const court=g.scene
+  scene.add(court)
+  const box=new THREE.Box3().setFromObject(court)
+  const size=box.getSize(new THREE.Vector3())
+  const center=box.getCenter(new THREE.Vector3())
+  court.position.sub(center)
+  const sc=28/Math.max(size.x,.0001)
+  court.scale.setScalar(sc)
+  const rc=new THREE.Raycaster()
+  const ys=[]
+  const down=new THREE.Vector3(0,-1,0)
+  for(let gx=-3;gx<=3;gx++){
+    for(let gz=-3;gz<=3;gz++){
+      rc.set(new THREE.Vector3(gx*1.5,1000,gz*1.5),down)
+      const hits=rc.intersectObject(court,true)
+      const hit=hits.find(h=>h.face&&h.face.normal.y>.5)||hits[0]
+      if(hit) ys.push(hit.point.y)
     }
   }
-  ys.sort((a,b)=>a-b);
-  const courtY = ys.length ? ys[Math.floor(ys.length/2)] : 0;
-  courtPlane.position.y = courtY + 0.0001; // plane exactly at hardwood
+  ys.sort((a,b)=>a-b)
+  const woodY=ys.length?ys[(ys.length/2)|0]:0
+  floorPlane.position.y=woodY+.0001
+  const b2=new THREE.Box3().setFromObject(court)
+  const s2=b2.getSize(new THREE.Vector3())
+  const maxDim=Math.max(s2.x,s2.y,s2.z)
+  const fov=cam.fov*Math.PI/180
+  const dist=(maxDim/2)/Math.tan(fov/2)
+  cam.near=Math.max(dist/100,.01)
+  cam.far=dist*100
+  cam.updateProjectionMatrix()
+  cam.position.set(0,dist*.6,dist*1.2)
+  controls.target.set(0,0,0)
+  controls.maxDistance=maxDim*4
+  controls.update()
+  camDirty=true
+})
 
-  // Clamp to standard full-court bounds after our scaling
-  COURT_BOUNDS = { minX: -14, maxX: 14, minZ: -7.5, maxZ: 7.5 };
-
-  // Frame camera
-  const b2 = new THREE.Box3().setFromObject(court);
-  const size2 = b2.getSize(new THREE.Vector3());
-  const maxDim = Math.max(size2.x, size2.y, size2.z);
-  const fov = camera.fov * Math.PI/180;
-  const dist = (maxDim/2) / Math.tan(fov/2);
-  camera.near = Math.max(dist/100, 0.01);
-  camera.far = dist*100;
-  camera.updateProjectionMatrix();
-  camera.position.set(0, dist*0.6, dist*1.2);
-  controls.target.set(0,0,0);
-  controls.maxDistance = maxDim*4;
-  controls.update();
-});
-
-/* ----------------- Place/move players (one per role) ----------------- */
-function placeOrMovePlayerAt(p, number) {
-  const existing = playersByNumber.get(number);
-  if (!existing) {
-    const chip = makePlayerChip(number);
-    chip.position.copy(p);
-    scene.add(chip);
-    playersByNumber.set(number, chip);
-    allSprites.push(chip.userData.sprite);
-    actions.push({ type: 'player-add', number, object: chip });
-  } else {
-    const prev = existing.position.clone();
-    existing.position.copy(p);
-    actions.push({ type: 'player-move', number, object: existing, prevPosition: prev });
+function dropMarker(p,n){
+  const m=markerMap.get(n)
+  if(!m){
+    const mk=makeMarker(n)
+    mk.position.copy(p)
+    scene.add(mk)
+    markerMap.set(n,mk)
+    allLabels.push(mk.userData.label)
+    logStack.push({type:'add',number:n,obj:mk})
+  }else{
+    const old=m.position.clone()
+    m.position.copy(p)
+    logStack.push({type:'move',obj:m,prev:old})
   }
+  camDirty=true
 }
 
-/* ----------------- Freehand drawing (on plane) ----------------- */
-let drawing = false;
-let currentStrokePoints = [];
-let currentStroke = null;
+let drawing=false
+let currLine=null
+let pathPoints=[]
 
-function startStroke(p) {
-  drawing = true;
-  p.y += EPS_LINE;
-  currentStrokePoints = [p.clone()];
-  currentStroke = new THREE.Line(new THREE.BufferGeometry().setFromPoints(currentStrokePoints), lineMatFinal);
-  scene.add(currentStroke);
-  controls.enabled = false;
+function startLine(p){
+  drawing=true
+  p.y=floorPlane.position.y+.02
+  pathPoints=[p.clone()]
+  currLine=new THREE.Line(new THREE.BufferGeometry().setFromPoints(pathPoints),lineMat)
+  scene.add(currLine)
+  controls.enabled=false
 }
-function addStrokePoint(p) {
-  if (!p) return;
-  p.y += EPS_LINE;
-  const last = currentStrokePoints[currentStrokePoints.length - 1];
-  if (!last || last.distanceTo(p) < MIN_DIST) return;
-  currentStrokePoints.push(p.clone());
-  currentStroke.geometry.dispose();
-  currentStroke.geometry = new THREE.BufferGeometry().setFromPoints(currentStrokePoints);
+
+function addLine(p){
+  if(!p) return
+  p.y=floorPlane.position.y+.02
+  const last=pathPoints[pathPoints.length-1]
+  if(!last||last.distanceTo(p)<MIN_SEG) return
+  pathPoints.push(p.clone())
+  currLine.geometry.dispose()
+  currLine.geometry=new THREE.BufferGeometry().setFromPoints(pathPoints)
 }
-function endStroke() {
-  if (!drawing) return;
-  drawing = false;
-  controls.enabled = true;
-  if (currentStrokePoints.length < 2) {
-    scene.remove(currentStroke);
-    currentStroke.geometry.dispose();
-  } else {
-    actions.push({ type:'stroke', object: currentStroke });
-    strokes.push(currentStroke);
+
+function endLine(){
+  if(!drawing) return
+  drawing=false
+  if(pathPoints.length<2){
+    scene.remove(currLine)
+    currLine.geometry.dispose()
+  }else{
+    logStack.push({type:'stroke',obj:currLine})
+    scribbles.push(currLine)
   }
-  currentStroke = null;
-  currentStrokePoints = [];
+  currLine=null
+  pathPoints=[]
 }
 
-/* ----------------- Pointer events ----------------- */
-renderer.domElement.addEventListener('pointerdown', (e) => {
-  const p = getPointFromEvent(e);
-  if (!p) return;
-  if (tool === 'place') placeOrMovePlayerAt(p, activePlayer);
-  else if (tool === 'draw') startStroke(p);
-});
-renderer.domElement.addEventListener('pointermove', (e) => {
-  if (!drawing || tool !== 'draw') return;
-  addStrokePoint(getPointFromEvent(e));
-});
-window.addEventListener('pointerup', endStroke);
-renderer.domElement.addEventListener('pointerleave', endStroke);
-renderer.domElement.addEventListener('pointerdown', () => {
-  if (tool === 'draw') controls.enabled = false;
-});
-window.addEventListener('pointerup', () => { controls.enabled = true; });
+let lastPick=0
+const PICK_MS=16
 
-/* ----------------- Undo / Clear ----------------- */
-function undo() {
-  if (drawing) { endStroke(); return; }
-  const last = actions.pop();
-  if (!last) return;
+renderer.domElement.addEventListener('pointerdown',e=>{
+  if(mode==='move') return
+  const p=getPoint(e)
+  if(!p) return
+  if(mode==='place') dropMarker(p,activeNum)
+  else if(mode==='draw') startLine(p)
+})
+renderer.domElement.addEventListener('pointermove',e=>{
+  if(!drawing||mode!=='draw') return
+  const now=performance.now()
+  if(now-lastPick<PICK_MS) return
+  lastPick=now
+  addLine(getPoint(e))
+})
+window.addEventListener('pointerup',endLine)
+renderer.domElement.addEventListener('pointerleave',endLine)
 
-  switch (last.type) {
-    case 'stroke': {
-      scene.remove(last.object);
-      last.object.geometry?.dispose?.();
-      const i = strokes.indexOf(last.object);
-      if (i >= 0) strokes.splice(i, 1);
-      break;
-    }
-    case 'player-add': {
-      scene.remove(last.object);
-      // remove sprite ref used for constant pixel sizing
-      const spr = last.object.userData.sprite;
-      const idx = allSprites.indexOf(spr);
-      if (idx >= 0) allSprites.splice(idx, 1);
-      // dispose
-      last.object.traverse(o => {
-        if (o.material) {
-          if (Array.isArray(o.material)) o.material.forEach(m => m.dispose?.());
-          else o.material.dispose?.();
-        }
-        o.geometry?.dispose?.();
-      });
-      playersByNumber.delete(last.number);
-      break;
-    }
-    case 'player-move': {
-      last.object.position.copy(last.prevPosition);
-      break;
-    }
+function undoLast(){
+  if(drawing){endLine();return}
+  const last=logStack.pop()
+  if(!last)return
+  if(last.type==='stroke'){
+    scene.remove(last.obj)
+    last.obj.geometry.dispose()
+    const i=scribbles.indexOf(last.obj)
+    if(i>=0)scribbles.splice(i,1)
+  }else if(last.type==='add'){
+    scene.remove(last.obj)
+    markerMap.delete(last.number)
+  }else if(last.type==='move'){
+    last.obj.position.copy(last.prev)
   }
+  camDirty=true
 }
 
-function clearAll() {
-  // remove strokes
-  strokes.forEach(s => { scene.remove(s); s.geometry?.dispose?.(); });
-  strokes.length = 0;
-
-  // remove player chips
-  playersByNumber.forEach(chip => {
-    scene.remove(chip);
-    chip.traverse(o => {
-      if (o.material) {
-        if (Array.isArray(o.material)) o.material.forEach(m => m.dispose?.());
-        else o.material.dispose?.();
-      }
-      o.geometry?.dispose?.();
-    });
-  });
-  playersByNumber.clear();
-  allSprites.length = 0;
-  actions.length = 0;
+function wipeAll(){
+  scribbles.forEach(s=>{scene.remove(s);s.geometry.dispose()})
+  scribbles.length=0
+  markerMap.forEach(m=>scene.remove(m))
+  markerMap.clear()
+  allLabels.length=0
+  logStack.length=0
+  camDirty=true
 }
 
-/* ----------------- Resize + Animate ----------------- */
-function onResize() {
-  renderer.setSize(window.innerWidth, window.innerHeight, false);
-  camera.aspect = window.innerWidth / window.innerHeight;
-  camera.updateProjectionMatrix();
-}
-window.addEventListener('resize', onResize);
-
-/* ---- keep number sprites a constant on-screen size ---- */
-function fitSpriteToPixels(sprite, px) {
-  const worldPos = sprite.getWorldPosition(new THREE.Vector3());
-  const dist = camera.position.distanceTo(worldPos);
-  const vFOV = camera.fov * Math.PI / 180;
-  const worldHeight = 2 * Math.tan(vFOV / 2) * dist;
-  const worldPerPixel = worldHeight / renderer.domElement.clientHeight;
-  const size = worldPerPixel * px;
-  sprite.scale.set(size, size, 1);
-}
-function resizeAllSprites() {
-  for (const spr of allSprites) fitSpriteToPixels(spr, CHIP_PX);
+function savePlay(){
+  let name=prompt('play name?')
+  if(!name)return
+  const data={
+    players:[...markerMap.entries()].map(([n,o])=>({n,pos:o.position.clone(),col:colors[n-1]})),
+    lines:scribbles.map(l=>({points:l.geometry.attributes.position.array}))
+  }
+  localStorage.setItem('play_'+name,JSON.stringify(data))
+  alert('saved '+name)
+  updateList()
 }
 
-function tick() {
-  requestAnimationFrame(tick);
-  controls.update();
-  resizeAllSprites();
-  renderer.render(scene, camera);
+function loadPlay(name){
+  const d=JSON.parse(localStorage.getItem('play_'+name))
+  if(!d)return alert('not found')
+  wipeAll()
+  d.players.forEach(p=>{
+    const mk=makeMarker(p.n,new THREE.Vector3(p.pos.x,p.pos.y,p.pos.z),p.col)
+    scene.add(mk)
+    markerMap.set(p.n,mk)
+    allLabels.push(mk.userData.label)
+  })
+  d.lines.forEach(l=>{
+    const pts=[]
+    const arr=l.points
+    for(let i=0;i<arr.length;i+=3){
+      pts.push(new THREE.Vector3(arr[i],arr[i+1],arr[i+2]))
+    }
+    const line=new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts),lineMat)
+    line.renderOrder=999
+    scene.add(line)
+    scribbles.push(line)
+  })
+  camDirty=true
+  alert('loaded '+name)
 }
-tick();
-onResize();
+
+function updateList(){
+  const sel=document.getElementById('playList')
+  if(!sel)return
+  sel.innerHTML=''
+  Object.keys(localStorage).filter(k=>k.startsWith('play_')).forEach(k=>{
+    const o=document.createElement('option')
+    o.value=k.slice(5)
+    o.textContent=k.slice(5)
+    sel.appendChild(o)
+  })
+}
+
+const ui=document.querySelector('.ui')
+const saveCard=document.createElement('div')
+saveCard.className='card'
+saveCard.innerHTML=`
+  <button id="savePlay" class="btn small">Save</button>
+  <select id="playList" class="btn small" style="padding:6px 8px;color:white;background:transparent;border:1px solid rgba(255,255,255,.1)"></select>
+  <button id="loadPlay" class="btn small">Load</button>
+`
+ui.appendChild(saveCard)
+document.getElementById('savePlay').onclick=savePlay
+document.getElementById('loadPlay').onclick=()=>{
+  const n=document.getElementById('playList').value
+  if(n)loadPlay(n)
+}
+updateList()
+
+function resize(){
+  renderer.setSize(window.innerWidth,window.innerHeight)
+  cam.aspect=window.innerWidth/window.innerHeight
+  cam.updateProjectionMatrix()
+  camDirty=true
+}
+window.addEventListener('resize',resize)
+
+const tmp=new THREE.Vector3()
+function fitLabel(s,px){
+  s.getWorldPosition(tmp)
+  const d=cam.position.distanceTo(tmp)
+  const v=cam.fov*Math.PI/180
+  const worldH=2*Math.tan(v/2)*d
+  const per=worldH/renderer.domElement.clientHeight
+  const sc=per*px
+  s.scale.set(sc,sc,1)
+}
+function sizeLabels(){
+  for(let i=0;i<allLabels.length;i++)fitLabel(allLabels[i],MARKER_PX)
+}
+
+// render loop
+if(window.__court3dRaf)cancelAnimationFrame(window.__court3dRaf)
+function loop(){
+  window.__court3dRaf=requestAnimationFrame(loop)
+  controls.update()
+  if(camDirty){sizeLabels();camDirty=false}
+  renderer.render(scene,cam)
+}
+loop()
+resize()
