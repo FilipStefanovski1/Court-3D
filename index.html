@@ -10,61 +10,44 @@
   .ui{
     position:fixed;top:14px;left:14px;z-index:10;
     display:flex;flex-direction:column;gap:11px;
-    pointer-events:none;
-    width:250px;
+    pointer-events:none;width:250px;
   }
   .card{
     display:flex;align-items:center;gap:9px;flex-wrap:wrap;
     background:rgba(35,35,45,.6);
     border:1px solid rgba(255,255,255,.1);
     border-radius:9px 11px 9px 10px;
-    padding:10px 13px;
-    backdrop-filter:blur(10px);
+    padding:10px 13px;backdrop-filter:blur(10px);
     box-shadow:0 3px 8px rgba(0,0,0,.35);
     pointer-events:auto;
   }
   .btn{
     border:1px solid rgba(255,255,255,.15);
     background:rgba(255,255,255,.03);
-    color:#f0f0f0;
-    border-radius:9px;
-    padding:7px 12px;
-    cursor:pointer;
+    color:#f0f0f0;border-radius:9px;
+    padding:7px 12px;cursor:pointer;
     box-shadow:0 2px 6px rgba(0,0,0,.25);
     transition:all .12s ease;
   }
-  .btn:hover{
-    background:rgba(255,255,255,.08);
-    box-shadow:0 0 10px rgba(75,130,240,.25);
-    transform:translateY(-1px);
-  }
-  .btn:active{transform:scale(.97);}
-  .btn.small{font-size:13px;padding:5px 8px;}
-  .btn.active{
-    background:#ff9900;
-    border-color:#42f800;
-    color:#fff;
-    box-shadow:0 0 12px rgba(75,130,240,.3);
-  }
-  .stack{display:flex;flex-direction:column;gap:7px;}
-  .label{font-size:12px;color:#c0c0c8;letter-spacing:.3px;font-weight:500;}
-  .row{display:flex;gap:6px;flex-wrap:wrap;}
+  .btn:hover{background:rgba(255,255,255,.08);transform:translateY(-1px)}
+  .btn:active{transform:scale(.97)}
+  .btn.small{font-size:13px;padding:5px 8px}
+  .btn.active{background:#ff9900;border-color:#42f800;color:#fff}
+  .stack{display:flex;flex-direction:column;gap:7px}
+  .label{font-size:12px;color:#c0c0c8;letter-spacing:.3px;font-weight:500}
+  .row{display:flex;gap:6px;flex-wrap:wrap}
   .tip{
     color:#b0b0ba;font-size:12px;line-height:1.4;
-    padding:8px 11px;
-    border:1px solid rgba(255,255,255,.1);
+    padding:8px 11px;border:1px solid rgba(255,255,255,.1);
     background:rgba(25,25,30,.55);
-    border-radius:9px 11px 9px 10px;
-    max-width:240px;
-    box-shadow:0 2px 8px rgba(0,0,0,.25);
+    border-radius:9px 11px 9px 10px;max-width:240px
   }
-  body.move-mode canvas{cursor:grab;}
-  body.move-mode canvas:active{cursor:grabbing;}
+  body.move-mode canvas{cursor:grab}
+  body.move-mode canvas:active{cursor:grabbing}
 </style>
 </head>
 <body>
   <div class="ui">
-
     <div class="stack">
       <div class="label">Tools</div>
       <div class="card">
@@ -89,17 +72,24 @@
       </div>
     </div>
 
-    <div class="tip">
-      <b>Hold</b> mouse to draw on the court.<br>
-      Use <b>Move</b> mode to rotate and pan around.
+    <div class="stack">
+      <div class="label">Plays</div>
+      <div class="card">
+        <button id="savePlay" class="btn small">Save</button>
+        <select id="playList" class="btn small" style="padding:6px 8px;color:#fff;background:transparent;border:1px solid rgba(255,255,255,.15)"></select>
+        <button id="loadPlay" class="btn small">Load</button>
+      </div>
     </div>
 
+    <div class="tip">
+      <b>Hold</b> mouse to draw on the court. Use <b>Move</b> to rotate/pan.
+    </div>
   </div>
 
   <canvas id="c"></canvas>
   <script type="module" src="main.js"></script>
   <script>
-    // jus toggles grab handy cursor
+    // cursor only
     const btnMove=document.getElementById('tool-move')
     const btnDraw=document.getElementById('tool-draw')
     const btnPlace=document.getElementById('tool-place')
